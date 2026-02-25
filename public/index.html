@@ -1,11 +1,54 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>C-Jax Void Bot</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C-Jax Void Bot 😈</title>
+<link rel="stylesheet" href="style.css">
 </head>
-<body style="background:black; color:white; text-align:center; margin-top:100px;">
-    <h1>😈 C-Jax Void Bot</h1>
-    <p>Public Pairing System Coming Online...</p>
-    <a href="pair.html" style="color:#00f0ff; text-decoration:none; font-size:20px;">Go to Pairing</a>
+<body>
+
+<audio autoplay loop>
+  <source src="music.mp3" type="audio/mp3">
+</audio>
+
+<div class="container">
+  <h1>C-Jax Void Bot 😈</h1>
+  <p>Enter your phone number to pair:</p>
+  <input type="text" id="phone" placeholder="+2347076849343" />
+  <button onclick="sendPair()">Send Pairing Code</button>
+
+  <p>Enter code you received:</p>
+  <input type="text" id="code" placeholder="123456" />
+  <button onclick="verifyCode()">Verify Code</button>
+
+  <div id="message"></div>
+</div>
+
+<script>
+async function sendPair() {
+    const phone = document.getElementById('phone').value;
+    const res = await fetch('/pair', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: `phone=${phone}`
+    });
+    const text = await res.text();
+    document.getElementById('message').innerText = text;
+}
+
+async function verifyCode() {
+    const phone = document.getElementById('phone').value;
+    const code = document.getElementById('code').value;
+    const res = await fetch('/verify', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: `phone=${phone}&code=${code}`
+    });
+    const text = await res.text();
+    document.getElementById('message').innerText = text;
+}
+</script>
+
 </body>
 </html>

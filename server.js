@@ -1,34 +1,55 @@
-import { makeWASocket, useSingleFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
-import express from 'express';
-import fs from 'fs';
+import makeWASocket, { 
+    useMultiFileAuthState, 
+    DisconnectReason 
+} from '@whiskeysockets/baileys'
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+import express from 'express'
+import fs from 'fs'
 
-// Create session folder if not exists
-if (!fs.existsSync('./sessions')) fs.mkdirSync('./sessions');
+const app = express()
+const PORT = process.env.PORT || 3000
 
-const { state, saveState } = useSingleFileAuthState('./sessions/whatsapp.json');
+// Create sessions folder if it doesn't exist
+if (!fs.existsSync('./sessions')) {
+    fs.mkdirSync('./sessions')
+}
 
-// Start WhatsApp bot
-const sock = makeWASocket({
-    auth: state
-});
+// Use modern multi-file auth
+const startSock = async () => {
 
-sock.ev.on('creds.update', saveState);
+    const { state, saveCreds } = await useMultiFileAuthState('./sessions')
 
-sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
-    if(connection === 'close') {
-        const reason = lastDisconnect.error?.output?.statusCode;
-        console.log('Disconnected:', reason);
-    } else if(connection === 'open') {
-        console.log('WhatsApp Connected ✅');
-    }
-});
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true
+    })
+
+    sock.ev.on('creds.update', saveCreds)
+
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update
+
+        if (connection === 'close') {
+            const shouldReconnect =
+                lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+
+            console.log('Connection closed. Reconnecting:', shouldReconnect)
+
+            if (shouldReconnect) {
+                startSock()
+            }
+        } else if (connection === 'open') {
+            console.log('✅ WhatsApp Connected Successfully!')
+        }
+    })
+}
+
+startSock()
 
 app.get('/', (req, res) => {
-    res.send('C-Jax Void Bot is running 😈');
-});
+    res.send('😈 C-Jax Void Bot is Running!')
+})
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+})

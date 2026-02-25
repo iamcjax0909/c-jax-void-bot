@@ -7,14 +7,14 @@
   body {
     margin: 0;
     padding: 0;
-    background: #0a0a23; /* dark cyber background */
+    background: #0a0a23;
     font-family: 'Courier New', Courier, monospace;
-    color: #00f0ff; /* cyber blue */
+    color: #00f0ff;
   }
   h1 {
     text-align: center;
     margin-top: 50px;
-    color: #9b30ff; /* neon purple */
+    color: #9b30ff;
     text-shadow: 0 0 10px #00f0ff, 0 0 20px #9b30ff;
   }
   #pairForm {
@@ -30,6 +30,8 @@
     border-radius: 5px;
     font-size: 16px;
     width: 250px;
+    background: #111133;
+    color: #00f0ff;
   }
   button {
     padding: 10px 20px;
@@ -41,17 +43,11 @@
     border-radius: 5px;
     text-shadow: 0 0 5px #00f0ff;
   }
-  #qr {
-    display: block;
-    margin: 30px auto;
-    max-width: 300px;
-    border: 2px solid #00f0ff;
-    padding: 10px;
-    border-radius: 10px;
-  }
   #message {
     text-align: center;
     margin-top: 20px;
+    color: #00f0ff;
+    text-shadow: 0 0 5px #9b30ff;
   }
 </style>
 </head>
@@ -61,7 +57,6 @@
   <input type="text" id="number" placeholder="Enter your WhatsApp number" />
   <button onclick="pair()">Pair Now</button>
 </div>
-<img id="qr" src="" alt="QR code will appear here" />
 <div id="message"></div>
 
 <script>
@@ -75,8 +70,7 @@ async function pair() {
     body: JSON.stringify({ number })
   });
   const data = await res.json();
-  if (data.qr) {
-    document.getElementById('qr').src = data.qr;
+  if (data.message) {
     document.getElementById('message').innerText = data.message;
   } else if (data.error) {
     document.getElementById('message').innerText = data.error;
@@ -84,4 +78,4 @@ async function pair() {
 }
 </script>
 </body>
-                                     </html>
+  </html>

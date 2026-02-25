@@ -1,61 +1,34 @@
-// server.js
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { default: makeWASocket, useSingleFileAuthState, fetchLatestBaileysVersion } = require('@adiwajshing/baileys');
+import { makeWASocket, useSingleFileAuthState, DisconnectReason } from '@whiskeysockets/baileys';
+import express from 'express';
+import fs from 'fs';
 
-// ---------- Setup Express ----------
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files from public/
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+// Create session folder if not exists
+if (!fs.existsSync('./sessions')) fs.mkdirSync('./sessions');
 
-// ---------- WhatsApp session ----------
-const sessionFile = './sessions/whatsapp.json';
-const { state, saveState } = useSingleFileAuthState(sessionFile);
-
-// ---------- WhatsApp Socket ----------
-async function startBot() {
-  const { version } = await fetchLatestBaileysVersion();
-  const sock = makeWASocket({
-    auth: state,
-    version
-  });
-
-  sock.ev.on('creds.update', saveState);
-
-  sock.ev.on('connection.update', (update) => {
-    console.log('Connection Update:', update);
-  });
-
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    console.log('Message received:', messages[0].message);
-    // Here you can add your command handling later
-  });
-}
+const { state, saveState } = useSingleFileAuthState('./sessions/whatsapp.json');
 
 // Start WhatsApp bot
-startBot().catch(err => console.log('Bot Error:', err));
+const sock = makeWASocket({
+    auth: state
+});
 
-// ---------- API Routes ----------
-app.post('/pair', async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
+sock.ev.on('creds.update', saveState);
 
-  // In real deployment, you can generate a verification code here
-  const code = Math.floor(100000 + Math.random() * 900000);
-  // You can send this code to your own WhatsApp via bot later
-  console.log(`Pair request: ${phone} | Code: ${code}`);
-  res.json({ message: `Code sent to ${phone}`, code });
+sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect } = update;
+    if(connection === 'close') {
+        const reason = lastDisconnect.error?.output?.statusCode;
+        console.log('Disconnected:', reason);
+    } else if(connection === 'open') {
+        console.log('WhatsApp Connected ✅');
+    }
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.send('C-Jax Void Bot is running 😈');
 });
 
-// ---------- Start server ----------
-app.listen(PORT, () => {
-  console.log(`🚀 C-Jax Void Bot running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

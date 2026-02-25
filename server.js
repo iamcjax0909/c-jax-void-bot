@@ -1,76 +1,61 @@
+// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
-const fs = require('fs-extra');
-const { default: makeWASocket, useSingleFileAuthState, DisconnectReason } = require('@adiwajshing/baileys');
+const path = require('path');
+const fs = require('fs');
+const { default: makeWASocket, useSingleFileAuthState, fetchLatestBaileysVersion } = require('@adiwajshing/baileys');
 
+// ---------- Setup Express ----------
 const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static('public'));
-
 const PORT = process.env.PORT || 3000;
 
-// Sessions folder
-fs.ensureDirSync('./sessions');
+// Serve static files from public/
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
-// Store pairing codes temporarily
-const pairingCodes = {};
+// ---------- WhatsApp session ----------
+const sessionFile = './sessions/whatsapp.json';
+const { state, saveState } = useSingleFileAuthState(sessionFile);
 
-// WhatsApp connection using Baileys
-const { state, saveState } = useSingleFileAuthState('./sessions/whatsapp.json');
-const sock = makeWASocket({
+// ---------- WhatsApp Socket ----------
+async function startBot() {
+  const { version } = await fetchLatestBaileysVersion();
+  const sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true
-});
+    version
+  });
 
-sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
-    if(connection === 'close') {
-        if((lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut) {
-            console.log('Reconnecting...');
-        } else {
-            console.log('Logged out. Delete whatsapp.json to re-login.');
-        }
-    }
-});
+  sock.ev.on('creds.update', saveState);
 
-sock.ev.on('creds.update', saveState);
+  sock.ev.on('connection.update', (update) => {
+    console.log('Connection Update:', update);
+  });
 
-// Generate 6-digit code
-function generateCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    console.log('Message received:', messages[0].message);
+    // Here you can add your command handling later
+  });
 }
 
-// Endpoint to request pairing
+// Start WhatsApp bot
+startBot().catch(err => console.log('Bot Error:', err));
+
+// ---------- API Routes ----------
 app.post('/pair', async (req, res) => {
-    const phone = req.body.phone;
-    if(!phone) return res.send("❌ Enter a valid phone number");
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'Phone number required' });
 
-    const code = generateCode();
-    pairingCodes[phone] = code;
-
-    // Send WhatsApp message to the number
-    try {
-        await sock.sendMessage(`${phone}@s.whatsapp.net`, { text: `📌 Your C-Jax Void Bot pairing code is: ${code}` });
-        res.send("✅ Pairing code sent to your WhatsApp. Enter it below to confirm.");
-    } catch(err) {
-        console.log(err);
-        res.send("❌ Failed to send WhatsApp message. Make sure your number is registered.");
-    }
+  // In real deployment, you can generate a verification code here
+  const code = Math.floor(100000 + Math.random() * 900000);
+  // You can send this code to your own WhatsApp via bot later
+  console.log(`Pair request: ${phone} | Code: ${code}`);
+  res.json({ message: `Code sent to ${phone}`, code });
 });
 
-// Endpoint to verify code
-app.post('/verify', (req, res) => {
-    const { phone, code } = req.body;
-    if(pairingCodes[phone] && pairingCodes[phone] === code) {
-        // Save session file
-        fs.writeFileSync(`./sessions/${phone}.json`, JSON.stringify({ phone, linked: true }));
-        delete pairingCodes[phone];
-        res.send("🎉 Successfully connected to C-Jax Void Bot!");
-    } else {
-        res.send("❌ Invalid code, try again.");
-    }
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ---------- Start server ----------
 app.listen(PORT, () => {
-    console.log(`🚀 C-Jax Void Bot running on port ${PORT}`);
+  console.log(`🚀 C-Jax Void Bot running on port ${PORT}`);
 });

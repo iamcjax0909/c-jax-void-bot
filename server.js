@@ -1,53 +1,91 @@
-import makeWASocket, { 
-    useMultiFileAuthState, 
-    DisconnectReason 
-} from '@whiskeysockets/baileys'
+import makeWASocket, {
+    useMultiFileAuthState,
+    DisconnectReason,
+    fetchLatestBaileysVersion
+} from "@whiskeysockets/baileys"
 
-import express from 'express'
-import fs from 'fs'
+import express from "express"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 10000
 
-// Create sessions folder if it doesn't exist
-if (!fs.existsSync('./sessions')) {
-    fs.mkdirSync('./sessions')
+app.use(express.json())
+app.use(express.static("public"))
+
+if (!fs.existsSync("./sessions")) {
+    fs.mkdirSync("./sessions")
 }
 
-// Use modern multi-file auth
-const startSock = async () => {
+let sock = null
+let pairingCode = null
+let connectionStatus = "Disconnected"
 
-    const { state, saveCreds } = await useMultiFileAuthState('./sessions')
+async function startSock() {
 
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true
+    const { state, saveCreds } = await useMultiFileAuthState("./sessions")
+    const { version } = await fetchLatestBaileysVersion()
+
+    sock = makeWASocket({
+        version,
+        auth: state
     })
 
-    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on("creds.update", saveCreds)
 
-    sock.ev.on('connection.update', (update) => {
+    sock.ev.on("connection.update", (update) => {
         const { connection, lastDisconnect } = update
 
-        if (connection === 'close') {
+        if (connection === "open") {
+            connectionStatus = "Connected ✅"
+            console.log("WhatsApp Connected")
+        }
+
+        if (connection === "close") {
+            connectionStatus = "Disconnected ❌"
             const shouldReconnect =
                 lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
 
-            console.log('Connection closed. Reconnecting:', shouldReconnect)
-
-            if (shouldReconnect) {
-                startSock()
-            }
-        } else if (connection === 'open') {
-            console.log('✅ WhatsApp Connected Successfully!')
+            if (shouldReconnect) startSock()
         }
     })
 }
 
 startSock()
 
-app.get('/', (req, res) => {
-    res.send('😈 C-Jax Void Bot is Running!')
+// API to request pairing code
+app.post("/pair", async (req, res) => {
+    try {
+        const { number } = req.body
+
+        if (!number) {
+            return res.json({ error: "Phone number required" })
+        }
+
+        if (!sock) {
+            return res.json({ error: "Socket not ready" })
+        }
+
+        const code = await sock.requestPairingCode(number)
+        pairingCode = code
+
+        res.json({ code })
+    } catch (err) {
+        console.log(err)
+        res.json({ error: "Failed to generate pairing code" })
+    }
+})
+
+// API to get connection status
+app.get("/status", (req, res) => {
+    res.json({
+        status: connectionStatus
+    })
 })
 
 app.listen(PORT, () => {

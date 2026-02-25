@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>C-Jax Void Bot Pairing</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background: #0a0a23; /* dark cyber background */
+    font-family: 'Courier New', Courier, monospace;
+    color: #00f0ff; /* cyber blue */
+  }
+  h1 {
+    text-align: center;
+    margin-top: 50px;
+    color: #9b30ff; /* neon purple */
+    text-shadow: 0 0 10px #00f0ff, 0 0 20px #9b30ff;
+  }
+  #pairForm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 50px;
+  }
+  input {
+    padding: 10px;
+    margin: 10px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    width: 250px;
+  }
+  button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    background: #9b30ff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    text-shadow: 0 0 5px #00f0ff;
+  }
+  #qr {
+    display: block;
+    margin: 30px auto;
+    max-width: 300px;
+    border: 2px solid #00f0ff;
+    padding: 10px;
+    border-radius: 10px;
+  }
+  #message {
+    text-align: center;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+<h1>😈 C-Jax Void Bot Pairing</h1>
+<div id="pairForm">
+  <input type="text" id="number" placeholder="Enter your WhatsApp number" />
+  <button onclick="pair()">Pair Now</button>
+</div>
+<img id="qr" src="" alt="QR code will appear here" />
+<div id="message"></div>
+
+<script>
+async function pair() {
+  const number = document.getElementById('number').value;
+  if (!number) return alert('Enter your number');
+
+  const res = await fetch('/pair', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ number })
+  });
+  const data = await res.json();
+  if (data.qr) {
+    document.getElementById('qr').src = data.qr;
+    document.getElementById('message').innerText = data.message;
+  } else if (data.error) {
+    document.getElementById('message').innerText = data.error;
+  }
+}
+</script>
+</body>
+                                     </html>

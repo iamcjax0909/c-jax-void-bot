@@ -1,17 +1,12 @@
 {
   "name": "c-jax-void-bot",
   "version": "1.0.0",
-  "description": "C-Jax Void Bot 😈 | WhatsApp phone pairing + music",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "@adiwajshing/baileys": "5.0.10"
-  },
-  "engines": {
-    "node": "22.x"
-  },
-  "license": "MIT"
+    "@whiskeysockets/baileys": "^6.7.17",
+    "express": "^4.18.2"
+  }
 }

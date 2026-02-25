@@ -2,53 +2,28 @@
 <html>
 <head>
     <title>C-Jax Void Bot</title>
-    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <h1>Welcome to C-Jax Void Bot</h1>
+    <input type="text" id="phone" placeholder="Enter your phone number">
+    <button onclick="requestPair()">Get Pairing Code</button>
+    <p id="output"></p>
 
-    <h1>😈 C-Jax Void Bot</h1>
-
-    <p id="status">Status: Checking...</p>
-
-    <input type="text" id="number" placeholder="Enter phone number with country code">
-    <button onclick="pair()">Generate Pairing Code</button>
-
-    <h2 id="code"></h2>
-
-    <audio autoplay loop>
-        <source src="music.mp3" type="audio/mpeg">
-    </audio>
-
-<script>
-async function pair() {
-    const number = document.getElementById("number").value
-
-    const res = await fetch("/pair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ number })
-    })
-
-    const data = await res.json()
-
-    if (data.code) {
-        document.getElementById("code").innerText = 
-            "Your Pairing Code: " + data.code
-    } else {
-        document.getElementById("code").innerText = data.error
-    }
-}
-
-async function checkStatus() {
-    const res = await fetch("/status")
-    const data = await res.json()
-    document.getElementById("status").innerText =
-        "Status: " + data.status
-}
-
-setInterval(checkStatus, 3000)
-checkStatus()
-</script>
-
+    <script>
+        async function requestPair() {
+            const phone = document.getElementById('phone').value;
+            const res = await fetch('/pair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('output').innerText = `Your pairing code: ${data.code}`;
+            } else {
+                document.getElementById('output').innerText = data.message;
+            }
+        }
+    </script>
 </body>
 </html>

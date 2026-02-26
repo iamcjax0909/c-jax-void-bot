@@ -1,7 +1,8 @@
 import express from "express"
-import makeWASocket, { 
-    useMultiFileAuthState, 
-    fetchLatestBaileysVersion 
+import makeWASocket, {
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion,
+    DisconnectReason
 } from "@whiskeysockets/baileys"
 import Pino from "pino"
 import path from "path"
@@ -16,26 +17,56 @@ const __dirname = path.dirname(__filename)
 app.use(express.json())
 app.use(express.static(path.join(__dirname, "public")))
 
-let sock = null
-
 async function startWhatsApp(number) {
+
     const { state, saveCreds } = await useMultiFileAuthState("session")
     const { version } = await fetchLatestBaileysVersion()
 
-    sock = makeWASocket({
-        version,
-        auth: state,
-        logger: Pino({ level: "silent" })
+    return new Promise((resolve, reject) => {
+
+        const sock = makeWASocket({
+            version,
+            auth: state,
+            logger: Pino({ level: "silent" }),
+            browser: ["C-Jax Void Bot", "Chrome", "1.0.0"]
+        })
+
+        sock.ev.on("creds.update", saveCreds)
+
+        sock.ev.on("connection.update", async (update) => {
+
+            const { connection, lastDisconnect } = update
+
+            if (connection === "open") {
+
+                try {
+                    if (!sock.authState.creds.registered) {
+
+                        // small delay ensures backend is ready
+                        setTimeout(async () => {
+                            const code = await sock.requestPairingCode(number)
+                            resolve(code)
+                        }, 3000)
+
+                    } else {
+                        resolve("Already Connected")
+                    }
+
+                } catch (err) {
+                    reject("Failed to request pairing code")
+                }
+            }
+
+            if (connection === "close") {
+                const shouldReconnect =
+                    lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+
+                if (!shouldReconnect) {
+                    reject("Logged out. Delete session folder.")
+                }
+            }
+        })
     })
-
-    sock.ev.on("creds.update", saveCreds)
-
-    if (!sock.authState.creds.registered) {
-        const code = await sock.requestPairingCode(number)
-        return code
-    }
-
-    return "Already Connected"
 }
 
 app.post("/pair", async (req, res) => {
@@ -47,12 +78,11 @@ app.post("/pair", async (req, res) => {
         }
 
         const code = await startWhatsApp(number)
-
         res.json({ code })
 
     } catch (err) {
         console.error(err)
-        res.json({ error: "Failed to generate pairing code" })
+        res.json({ error: "Pairing failed" })
     }
 })
 

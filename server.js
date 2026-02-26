@@ -1,108 +1,95 @@
-import express from "express";
-import fs from "fs";
-import path from "path";
-import P from "pino";
-import { makeWASocket, DisconnectReason, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import express from "express"
+import fs from "fs"
+import path from "path"
+import { fileURLToPath } from "url"
+import P from "pino"
+import {
+  default as makeWASocket,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  useMultiFileAuthState
+} from "@whiskeysockets/baileys"
 
-const app = express();
-const PORT = process.env.PORT || 10000;
-app.use(express.json());
-app.use(express.static("public"));
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
-// Logs
-const logger = P({ level: 'info' });
+const app = express()
+app.use(express.json())
+app.use(express.static(path.join(__dirname, "public")))
 
-// Sessions folder
-const SESSION_FILE = './sessions/whatsapp.json';
-let sessionData = {};
-if (fs.existsSync(SESSION_FILE)) {
-    sessionData = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf-8'));
+const PORT = process.env.PORT || 10000
+
+let sock
+
+async function startSock() {
+  const { state, saveCreds } = await useMultiFileAuthState(
+    path.join(__dirname, "sessions")
+  )
+
+  const { version } = await fetchLatestBaileysVersion()
+
+  sock = makeWASocket({
+    version,
+    logger: P({ level: "silent" }),
+    auth: state,
+    browser: ["C-Jax Void Bot", "Chrome", "1.0.0"]
+  })
+
+  sock.ev.on("creds.update", saveCreds)
+
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect } = update
+
+    if (connection === "close") {
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !==
+        DisconnectReason.loggedOut
+
+      console.log("Connection closed. Reconnecting:", shouldReconnect)
+
+      if (shouldReconnect) {
+        startSock()
+      }
+    } else if (connection === "open") {
+      console.log("✅ WhatsApp Connected Successfully")
+    }
+  })
 }
 
-// Store generated pairing codes
-let pairingCodes = {};
+startSock()
 
-// Generate random pairing code
-function generateCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-}
+// ROUTES
 
-// Save session
-function saveSession() {
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(sessionData));
-}
+app.get("/", (req, res) => {
+  res.send("😈 C-Jax Void Bot is Running!")
+})
 
-// Create WhatsApp socket
-async function startWhatsApp() {
-    const { version } = await fetchLatestBaileysVersion();
-    const sock = makeWASocket({
-        version,
-        logger,
-        auth: sessionData
-    });
+app.post("/pair", async (req, res) => {
+  try {
+    const { number } = req.body
 
-    sock.ev.on('connection.update', update => {
-        const { connection, lastDisconnect, qr } = update;
-        if (qr) {
-            logger.info("QR generated (ignore if using phone pairing code).");
-        }
-        if (connection === 'close') {
-            if ((lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut) {
-                logger.info('Reconnecting...');
-                startWhatsApp();
-            } else {
-                logger.info('Logged out from WhatsApp.');
-            }
-        } else if (connection === 'open') {
-            logger.info('WhatsApp connected successfully!');
-        }
-    });
+    if (!number) {
+      return res.json({ error: "Phone number required" })
+    }
 
-    sock.ev.on('creds.update', save => {
-        sessionData = save;
-        saveSession();
-    });
+    const cleanNumber = number.replace(/[^0-9]/g, "")
 
-    return sock;
-}
+    const code = await sock.requestPairingCode(cleanNumber)
 
-// Start WhatsApp
-const waSockPromise = startWhatsApp();
+    res.json({ pairingCode: code })
+  } catch (err) {
+    console.log("Pair error:", err)
+    res.json({ error: "Failed to generate pairing code" })
+  }
+})
 
-// -----------------
-// Website endpoints
-// -----------------
+app.get("/status", (req, res) => {
+  res.json({
+    connected: !!sock?.user,
+    user: sock?.user || null
+  })
+})
 
-// Home
-app.get('/', (req, res) => {
-    res.sendFile(path.join(Deno.cwd ? Deno.cwd() : process.cwd(), 'public/index.html'));
-});
-
-// Request pairing code
-app.post('/pair', async (req, res) => {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ success: false, message: 'Phone number required' });
-
-    const code = generateCode();
-    pairingCodes[code] = { phone, created: Date.now() };
-    res.json({ success: true, code });
-});
-
-// Verify pairing code
-app.post('/verify', async (req, res) => {
-    const { code } = req.body;
-    const entry = pairingCodes[code];
-    if (!entry) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
-
-    // Use WhatsApp to send notification to your phone
-    const sock = await waSockPromise;
-    await sock.sendMessage(entry.phone + '@s.whatsapp.net', { text: `✅ Successfully connected to C-Jax Void Bot!` });
-
-    delete pairingCodes[code];
-    res.json({ success: true, message: 'Connected successfully!' });
-});
-
-// Start server
 app.listen(PORT, () => {
-    console.log(`😈 C-Jax Void Bot is Running on port ${PORT}`);
-});
+  console.log(`😈 C-Jax Void Bot is Running on port ${PORT}`)
+})

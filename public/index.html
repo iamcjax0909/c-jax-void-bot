@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>C-Jax Void Bot</title>
+</head>
+<body>
+    <h2>Welcome to C-Jax Void Bot</h2>
+
+    <input type="text" id="number" placeholder="Enter number e.g 234XXXXXXXXXX">
+    <button onclick="getCode()">Get Pairing Code</button>
+
+    <h3 id="result"></h3>
+
+    <script>
+        async function getCode() {
+            const number = document.getElementById("number").value
+
+            const res = await fetch("/pair", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ number })
+            })
+
+            const data = await res.json()
+
+            if (data.code) {
+                document.getElementById("result").innerText = data.code
+            } else {
+                document.getElementById("result").innerText = data.error
+            }
+        }
+    </script>
+</body>
+</html>

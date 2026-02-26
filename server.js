@@ -17,6 +17,7 @@ app.use(express.json())
 app.use(express.static(path.join(__dirname, "public")))
 
 let sock
+let isSocketReady = false
 
 async function initSocket() {
     const { state, saveCreds } = await useMultiFileAuthState("session")
@@ -32,7 +33,17 @@ async function initSocket() {
     sock.ev.on("creds.update", saveCreds)
 
     sock.ev.on("connection.update", (update) => {
-        console.log("Connection Update:", update.connection)
+        const { connection } = update
+
+        if (connection === "open") {
+            console.log("WhatsApp Connected")
+            isSocketReady = true
+        }
+
+        if (connection === "close") {
+            console.log("Connection Closed")
+            isSocketReady = false
+        }
     })
 }
 
@@ -48,6 +59,17 @@ app.post("/pair", async (req, res) => {
             await initSocket()
         }
 
+        // wait until socket is ready (max 10 seconds)
+        let attempts = 0
+        while (!isSocketReady && attempts < 20) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+            attempts++
+        }
+
+        if (!isSocketReady) {
+            return res.json({ error: "WhatsApp not connected. Try again." })
+        }
+
         const code = await sock.requestPairingCode(number)
 
         res.json({ code })
@@ -58,6 +80,6 @@ app.post("/pair", async (req, res) => {
     }
 })
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
     console.log(`😈 C-Jax Void Bot running on ${PORT}`)
 })
